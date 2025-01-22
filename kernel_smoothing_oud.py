@@ -8,18 +8,11 @@ from data_preprocessing import filter_data, aggregate_rescale_data
 
 
 def gaussian_kernel(u):
-    """
-    Gaussian kernel function.
-    """
     return np.exp(-0.5 * u ** 2) / np.sqrt(2 * np.pi)
 
 
 def local_linear_kernel_smoother(x, y, h, num_workers=None):
-    """
-    Local linear regression smoother using Gaussian kernel weights.
-    """
-    n = len(y)
-    smoothed = np.zeros(n)
+    n = len(x)
 
     def compute_smoothed_point(i):
         x_center = x[i]
@@ -30,7 +23,7 @@ def local_linear_kernel_smoother(x, y, h, num_workers=None):
 
         x_neighbors = x[mask]
         y_neighbors = y[mask]
-        distances = x_neighbors - x_center
+        distances = x_neighbors - x_center # u
 
         # Compute Gaussian weights
         weights = gaussian_kernel(distances / h)
@@ -43,7 +36,6 @@ def local_linear_kernel_smoother(x, y, h, num_workers=None):
         try:
             beta = np.linalg.pinv(XtW @ X) @ (XtW @ y_neighbors)
         except np.linalg.LinAlgError:
-            print("error in computing beta")
             # Fallback if there's a numerical issue
             beta = np.array([y[i], 0.0])
         return beta[0]
@@ -89,7 +81,13 @@ def mean_absolute_deviation_score(y_true, y_pred):
     return -np.mean(np.abs(y_true - y_pred))
 
 
-def get_score(y_true, y_pred, method):
+def mean_squared_error_score(y_true, y_pred):
+    """
+    Mean Squared Error (MSE) - negated so a lower MSE yields a higher score.
+    """
+    return -np.mean((y_true - y_pred)**2)
+
+def get_score(y_true, y_pred, method="poisson"):
     """
     Wrapper to select the scoring method.
     We want to *maximize* the returned score in cross-validation.
@@ -98,6 +96,8 @@ def get_score(y_true, y_pred, method):
         return poisson_log_likelihood(y_true, y_pred)
     elif method == "mad":
         return mean_absolute_deviation_score(y_true, y_pred)
+    elif method == "mse":
+        return mean_squared_error_score(y_true, y_pred)
     else:
         raise ValueError(f"Unknown scoring method: {method}")
 
@@ -106,19 +106,6 @@ def get_score(y_true, y_pred, method):
 # 4) Bandwidth Selection via Cross-Validation
 # --------------------------------------------------
 def select_optimal_bandwidth(x, y, bandwidths, folds=5, num_workers=None, scoring="mad"):
-    """
-    Selects best bandwidth using cross-validation, based on a chosen `scoring`.
-
-    Parameters:
-        x (np.array): Array of time or index values.
-        y (np.array): Array of response values (counts).
-        bandwidths (list or range): Candidate bandwidths to try.
-        folds (int): Number of CV folds.
-        num_workers (int): Parallelization level for smoothing.
-        scoring (str): Either "poisson" or "mad" in this example.
-                       "poisson" => Poisson log-likelihood (maximize)
-                       "mad" => mean absolute deviation (negated, so still maximize)
-    """
     best_score = -np.inf
     best_bandwidth = None
     scores_list = []
@@ -186,7 +173,7 @@ def main(filtered_data, data, max_observations=None, scoring="mad"):
     y_vals = aggr_data['scaled_visits_web'].values
 
     # 5b) Select a bandwidth via cross-validation with chosen scoring
-    candidate_bandwidths = range(2, 40, 4)
+    candidate_bandwidths = range(1, 30, 1)
     best_h = select_optimal_bandwidth(
         x_vals, y_vals, bandwidths=candidate_bandwidths,
         folds=3, num_workers=8, scoring=scoring
@@ -237,5 +224,5 @@ if __name__ == "__main__":
     main(
         filtered_data=scaled_filtered_web_traffic,
         data=scaled_full_data,
-        max_observations=30000,
+        max_observations=20000,
         scoring="poisson")

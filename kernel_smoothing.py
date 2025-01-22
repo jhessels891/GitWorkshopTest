@@ -90,17 +90,10 @@ def mean_absolute_deviation_score(y_true, y_pred):
 
 
 def mean_squared_error_score(y_true, y_pred):
-    """
-    Mean Squared Error (MSE) - negated so a lower MSE yields a higher score.
-    """
     return -np.mean((y_true - y_pred) ** 2)
 
 
 def get_score(y_true, y_pred, method="poisson"):
-    """
-    Wrapper to select the scoring method.
-    We want to *maximize* the returned score in cross-validation.
-    """
     if method == "poisson":
         return poisson_log_likelihood(y_true, y_pred)
     elif method == "mad":
@@ -115,19 +108,6 @@ def get_score(y_true, y_pred, method="poisson"):
 # 4) Bandwidth Selection via Cross-Validation
 # --------------------------------------------------
 def select_optimal_bandwidth(x, y, bandwidths, folds=5, num_workers=None, scoring="mad"):
-    """
-    Selects best bandwidth using cross-validation, based on a chosen `scoring`.
-
-    Parameters:
-        x (np.array): Array of time or index values.
-        y (np.array): Array of response values (counts).
-        bandwidths (list or range): Candidate bandwidths to try.
-        folds (int): Number of CV folds.
-        num_workers (int): Parallelization level for smoothing.
-        scoring (str): Either "poisson" or "mad" in this example.
-                       "poisson" => Poisson log-likelihood (maximize)
-                       "mad" => mean absolute deviation (negated, so still maximize)
-    """
     best_score = -np.inf
     best_bandwidth = None
     scores_list = []
@@ -196,7 +176,7 @@ def main(filtered_data, data, max_observations=None, scoring="mad"):
     y_vals = aggr_data['scaled_visits_web'].values
 
     # 5b) Select a bandwidth via cross-validation with chosen scoring
-    candidate_bandwidths = range(2, 40, 4)
+    candidate_bandwidths = range(2, 40, 3)
     best_h = select_optimal_bandwidth(
         x_vals, y_vals, bandwidths=candidate_bandwidths,
         folds=3, num_workers=8, scoring=scoring
@@ -247,5 +227,5 @@ if __name__ == "__main__":
     main(
         filtered_data=scaled_filtered_web_traffic,
         data=scaled_full_data,
-        max_observations=80000,
-        scoring="mse")
+        max_observations=None,
+        scoring="mad")

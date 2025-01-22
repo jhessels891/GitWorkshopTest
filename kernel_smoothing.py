@@ -186,7 +186,7 @@ def main(filtered_data, data, max_observations=None, scoring="mad"):
     y_vals = aggr_data['scaled_visits_web'].values
 
     # 5b) Select a bandwidth via cross-validation with chosen scoring
-    candidate_bandwidths = range(1, 50, 3)
+    candidate_bandwidths = range(2, 40, 4)
     best_h = select_optimal_bandwidth(
         x_vals, y_vals, bandwidths=candidate_bandwidths,
         folds=3, num_workers=8, scoring=scoring
@@ -194,20 +194,21 @@ def main(filtered_data, data, max_observations=None, scoring="mad"):
     print(f"Best bandwidth found (scoring={scoring}): {best_h}")
 
     # Apply the best bandwidth to full data set
-    data['time_numeric'] = (data['datetime'] - data['datetime'].min()).dt.total_seconds() / 60.0  # in minutes
+    full_data = data
+    full_data['datetime'] = pd.to_datetime(full_data['datetime'])
+    full_data['time_numeric'] = (full_data['datetime'] - full_data['datetime'].min()).dt.total_seconds() / 60.0
 
-    x_vals = data['time_numeric'].values
-    y_vals = data['scaled_visits_web'].values
-    # 5c) Smooth using the best bandwidth
-    smoothed_y = local_linear_kernel_smoother(x_vals, y_vals, h=best_h, num_workers=None)
-    aggr_data['smoothed_visits'] = smoothed_y
-    aggr_data.to_csv("smoothed_web_traffic.csv", index=False)
+    x = full_data['time_numeric'].values
+    y = full_data['scaled_visits_web'].values
+    smoothed_y = local_linear_kernel_smoother(x, y, h=best_h, num_workers=None)
+    full_data['smoothed_visits'] = smoothed_y
+    full_data.to_csv("smoothed_web_traffic.csv", index=False)
 
     # 5d) Plot original vs smoothed
     plt.figure(figsize=(12, 6))
-    plt.plot(aggr_data['datetime'], aggr_data['visits_web'],
+    plt.plot(full_data['datetime'], full_data['scaled_visits_web'],
              label='Original Visits', alpha=0.6)
-    plt.plot(aggr_data['datetime'], aggr_data['smoothed_visits'],
+    plt.plot(full_data['datetime'], full_data['smoothed_visits'],
              label='Smoothed Visits', color='red', linewidth=2)
     plt.legend()
     plt.xlabel("Datetime")
@@ -236,5 +237,5 @@ if __name__ == "__main__":
     main(
         filtered_data=scaled_filtered_web_traffic,
         data=scaled_full_data,
-        max_observations=80000,
-        scoring="mad")
+        max_observations=30000,
+        scoring="poisson")
